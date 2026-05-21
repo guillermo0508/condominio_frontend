@@ -1,23 +1,39 @@
 <script setup lang="ts">
-import { RouterLink, RouterView } from 'vue-router'
-import HelloWorld from './components/HelloWorld.vue'
+import { ref } from 'vue'
+import LoginForm from './components/LoginForm.vue'
+import ChatRoom from './components/ChatRoom.vue'
+
+interface User {
+  id: number
+  name: string
+  email: string
+}
+
+const token = ref<string | null>(sessionStorage.getItem('auth_token'))
+const user = ref<User | null>(sessionStorage.getItem('auth_user') ? JSON.parse(sessionStorage.getItem('auth_user')!) : null)
+
+const handleLogin = (t: string, u: User) => {
+  token.value = t
+  user.value = u
+  sessionStorage.setItem('auth_token', t)
+  sessionStorage.setItem('auth_user', JSON.stringify(u))
+}
+
+const handleLogout = () => {
+  token.value = null
+  user.value = null
+  sessionStorage.removeItem('auth_token')
+  sessionStorage.removeItem('auth_user')
+}
 </script>
 
 <template>
-  <header>
-    <img alt="Vue logo" class="logo" src="@/assets/logo.svg" width="125" height="125" />
-
-    <div class="wrapper">
-      <HelloWorld msg="You did it!" />
-
-      <nav>
-        <RouterLink to="/">Home</RouterLink>
-        <RouterLink to="/about">About</RouterLink>
-      </nav>
-    </div>
-  </header>
-
-  <RouterView />
+  <div v-if="!token || !user" class="app">
+    <LoginForm @login="handleLogin" />
+  </div>
+  <div v-else class="app">
+    <ChatRoom :token="token" :user="user" @logout="handleLogout" />
+  </div>
 </template>
 
 <style scoped>
