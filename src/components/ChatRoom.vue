@@ -2,6 +2,7 @@
 import { ref, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import Echo from 'laravel-echo'
 import Pusher from 'pusher-js'
+import NotificationsButton from './NotificationsButton.vue'
 
 interface Message {
   id: number
@@ -27,7 +28,7 @@ const messages = ref<Message[]>([])
 const input = ref('')
 const error = ref('')
 
-let echo: Echo | null = null
+let echo: Echo<'reverb'> | null = null
 let messageId = 0
 
 const messagesContainer = ref<HTMLElement | null>(null)
@@ -204,17 +205,12 @@ onBeforeUnmount(() => {
   <main class="chat">
 
     <header class="header">
-      <h1>Chat de Condominio</h1>
+      <h1>💬 Chat de Condominio</h1>
 
       <div class="user-info">
-        <span>{{ user.name }}</span>
-
-        <button
-          @click="logout"
-          class="logout-btn"
-        >
-          Cerrar sesión
-        </button>
+        <span class="online-dot"></span>
+        <span class="user-label">{{ user.name }}</span>
+        <NotificationsButton :token="token" :user="user" />
       </div>
     </header>
 
@@ -288,40 +284,42 @@ onBeforeUnmount(() => {
 }
 
 .header {
-  background: #333;
-  color: white;
-  padding: 1rem;
+  background: white;
+  color: #111827;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid #e5e7eb;
 
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-shrink: 0;
 }
 
 h1 {
   margin: 0;
-  font-size: 1.25rem;
+  font-size: 1.1rem;
+  font-weight: 700;
 }
 
 .user-info {
   display: flex;
-  gap: 1rem;
+  gap: 0.75rem;
   align-items: center;
 }
 
-.logout-btn {
-  padding: 0.5rem 1rem;
-
-  background: #667eea;
-  color: white;
-
-  border: none;
-  border-radius: 0.25rem;
-
-  cursor: pointer;
+.online-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #10b981;
+  display: inline-block;
+  box-shadow: 0 0 0 2px #d1fae5;
 }
 
-.logout-btn:hover {
-  background: #5568d3;
+.user-label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #4b5563;
 }
 
 .messages {

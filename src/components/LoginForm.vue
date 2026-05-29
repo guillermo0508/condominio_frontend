@@ -1,25 +1,61 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { onMounted, ref } from 'vue'
 
 const isLogin = ref(true)
+const isAdminLogin = ref(false)
+const hasResidentAdmin = ref(false)
 const email = ref('')
+const adminUsername = ref('')
 const password = ref('')
 const name = ref('')
 const error = ref('')
+const info = ref('')
 
 const emit = defineEmits<{
-  login: [token: string, user: { id: number; name: string; email: string }]
+  login: [token: string, user: { id: number; name: string; email: string; role?: string; is_admin?: boolean }]
 }>()
 
 const toggleForm = () => {
   isLogin.value = !isLogin.value
+  isAdminLogin.value = false
   error.value = ''
+  info.value = ''
+}
+
+const showAdminLogin = () => {
+  if (hasResidentAdmin.value) {
+    isLogin.value = true
+    isAdminLogin.value = false
+    adminUsername.value = ''
+    password.value = ''
+    error.value = ''
+    info.value = 'Ingresa con el email y contraseña del residente administrador.'
+    return
+  }
+
+  isLogin.value = true
+  isAdminLogin.value = true
+  email.value = ''
+  password.value = ''
+  error.value = ''
+  info.value = ''
+}
+
+const showResidentLogin = () => {
+  isAdminLogin.value = false
+  adminUsername.value = ''
+  password.value = ''
+  error.value = ''
+  info.value = ''
 }
 
 const submit = async () => {
   error.value = ''
-  const url = isLogin.value ? '/auth/login' : '/auth/register'
-  const payload = isLogin.value
+  info.value = ''
+  const url = isAdminLogin.value ? '/auth/admin-master-login' : isLogin.value ? '/auth/login' : '/auth/register'
+  const payload = isAdminLogin.value
+    ? { username: adminUsername.value, password: password.value }
+    : isLogin.value
     ? { email: email.value, password: password.value }
     : { name: name.value, email: email.value, password: password.value }
 
@@ -34,47 +70,73 @@ const submit = async () => {
       error.value = data.error || 'Error'
       return
     }
-    if (isLogin.value) {
+    if (isLogin.value || isAdminLogin.value) {
       emit('login', data.token, data.user)
     } else {
       isLogin.value = true
-      email.value = payload.email
-      password.value = payload.password
+      password.value = ''
       error.value = 'Registered. Now login.'
     }
   } catch (e) {
     error.value = 'Network error'
   }
 }
+
+onMounted(async () => {
+  try {
+    const res = await fetch('http://localhost:8000/auth/admin-status')
+    if (!res.ok) return
+
+    const data = await res.json()
+    hasResidentAdmin.value = Boolean(data.has_resident_admin)
+  } catch (e) {
+    console.error(e)
+  }
+})
 </script>
 
 <template>
   <main class="auth">
     <div class="card">
-      <h1>{{ isLogin ? 'Iniciar sesión' : 'Registrarse' }}</h1>
+      <h1>{{ isAdminLogin ? 'Administrador' : isLogin ? 'Iniciar sesión' : 'Registrarse' }}</h1>
       <form @submit.prevent="submit">
-        <div v-if="!isLogin" class="input-group">
+        <div v-if="!isLogin && !isAdminLogin" class="input-group">
           <label>Nombre</label>
           <input v-model="name" type="text" placeholder="Tu nombre" required />
         </div>
-        <div class="input-group">
+        <div v-if="!isAdminLogin" class="input-group">
           <label>Email</label>
           <input v-model="email" type="email" placeholder="email@example.com" required />
+        </div>
+        <div v-else class="input-group">
+          <label>Usuario</label>
+          <input v-model="adminUsername" type="text" placeholder="admin" required />
         </div>
         <div class="input-group">
           <label>Contraseña</label>
           <input v-model="password" type="password" placeholder="Contraseña" required />
         </div>
         <button type="submit" class="btn">
-          {{ isLogin ? 'Ingresar' : 'Crear cuenta' }}
+          {{ isAdminLogin ? 'Entrar al panel' : isLogin ? 'Ingresar' : 'Crear cuenta' }}
         </button>
       </form>
-      <p class="toggle">
+      <p v-if="!isAdminLogin" class="toggle">
         {{ isLogin ? '¿Sin cuenta?' : '¿Ya tienes cuenta?' }}
         <button type="button" @click="toggleForm" class="link">
           {{ isLogin ? 'Registrarse' : 'Inicia sesión' }}
         </button>
       </p>
+      <p v-if="isLogin && !isAdminLogin" class="toggle">
+        <button type="button" @click="showAdminLogin" class="link">
+          Acceder como administrador
+        </button>
+      </p>
+      <p v-if="isAdminLogin" class="toggle">
+        <button type="button" @click="showResidentLogin" class="link">
+          Volver al login de residentes
+        </button>
+      </p>
+      <div v-if="info" class="info">{{ info }}</div>
       <div v-if="error" class="error">{{ error }}</div>
     </div>
   </main>
@@ -166,6 +228,16 @@ input:focus {
   background: #fee;
   border-left: 4px solid #f66;
   color: #c33;
+  border-radius: 0.25rem;
+  font-size: 0.875rem;
+}
+
+.info {
+  margin-top: 1rem;
+  padding: 0.75rem;
+  background: #eef2ff;
+  border-left: 4px solid #667eea;
+  color: #3730a3;
   border-radius: 0.25rem;
   font-size: 0.875rem;
 }
