@@ -1,0 +1,68 @@
+/* Transición idle ↔ cargando en botones HTTP */
+.btn-state-enter-active,
+.btn-state-leave-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.btn-state-enter-from,
+.btn-state-leave-to {
+  opacity: 0;
+  transform: translateY(4px);
+}
+
+.btn-loading {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.btn-spinner {
+  width: 1em;
+  height: 1em;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: btn-spin 0.65s linear infinite;
+}
+
+@keyframes btn-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Transición de alertas con resultado de la API */
+.api-alert-enter-active {
+  transition: opacity 0.35s ease, transform 0.35s ease;
+}
+
+.api-alert-leave-active {
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.api-alert-enter-from,
+.api-alert-leave-to {
+  opacity: 0;
+  transform: translateY(-8px);
+}
+
+.api-result-alert {
+  margin-top: 0.75rem;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.api-result-alert--success {
+  background: #f0fdf4;
+  color: #16a34a;
+  border: 1px solid #bbf7d0;
+}
+
+.api-result-alert--error {
+  background: #fef2f2;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+}

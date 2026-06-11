@@ -1,7 +1,10 @@
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import Echo from 'laravel-echo'
 import Pusher from 'pusher-js'
+import { useAuthStore } from '@/stores/auth'
+
+const authStore = useAuthStore()
 
 const props = defineProps<{
   token: string
@@ -27,9 +30,15 @@ interface Notification {
 const notifications = ref<Notification[]>([])
 const isDropdownOpen = ref(false)
 const selectedNotification = ref<Notification | null>(null)
+const hasNewNotification = ref(false)
 let echo: Echo<'reverb'> | null = null
+let prevUnreadCount = 0
 
-const NOTIFICATIONS_STORAGE_KEY = `notifications_${props.user.id}`
+// Use authStore token as fallback if prop is empty
+const effectiveToken = computed(() => props.token || authStore.token || '')
+const effectiveUser = computed(() => (props.user?.id ? props.user : authStore.user) as { id: number; name: string; email: string })
+
+const NOTIFICATIONS_STORAGE_KEY = computed(() => `notifications_${effectiveUser.value?.id}`)
 
 // Required for Laravel Echo to work with Pusher/Reverb
 window.Pusher = Pusher
@@ -52,7 +61,7 @@ const normalizeNotification = (notification: any): Notification => {
 
 const saveNotificationsToStorage = () => {
   try {
-    localStorage.setItem(NOTIFICATIONS_STORAGE_KEY, JSON.stringify(notifications.value))
+    localStorage.setItem(NOTIFICATIONS_STORAGE_KEY.value, JSON.stringify(notifications.value))
   } catch (e) {
     console.warn('Error saving notifications to localStorage', e)
   }
@@ -60,7 +69,7 @@ const saveNotificationsToStorage = () => {
 
 const loadNotificationsFromStorage = () => {
   try {
-    const stored = localStorage.getItem(NOTIFICATIONS_STORAGE_KEY)
+    const stored = localStorage.getItem(NOTIFICATIONS_STORAGE_KEY.value)
     if (stored) {
       notifications.value = JSON.parse(stored)
     }
@@ -80,30 +89,34 @@ const initEcho = () => {
     authEndpoint: 'http://localhost:8000/broadcasting/auth',
     auth: {
       headers: {
-        Authorization: `Bearer ${props.token}`,
+        Authorization: `Bearer ${effectiveToken.value}`,
       },
     },
   })
 
   // Laravel BroadcastNotificationCreated event is dispatched when broadcasting a notification
   echo
-    .private(`App.Models.User.${props.user.id}`)
+    .private(`App.Models.User.${effectiveUser.value?.id}`)
     .notification((notification: any) => {
       console.log('Notificación recibida por WebSockets:', notification)
       const normalized = normalizeNotification(notification)
       notifications.value.unshift(normalized)
       saveNotificationsToStorage()
+      hasNewNotification.value = true
+      setTimeout(() => { hasNewNotification.value = false }, 2000)
     })
     .error((err: any) => {
       console.error('Error Echo en notificaciones:', err)
     })
 }
 
+let notificationsPoll: number | null = null
+
 const loadNotifications = async () => {
   try {
     const res = await fetch('http://localhost:8000/notifications', {
       headers: {
-        Authorization: `Bearer ${props.token}`,
+        Authorization: `Bearer ${effectiveToken.value}`,
       },
     })
     if (res.ok) {
@@ -116,12 +129,37 @@ const loadNotifications = async () => {
   }
 }
 
+const refreshNotifications = async () => {
+  try {
+    const res = await fetch('http://localhost:8000/notifications', {
+      headers: {
+        Authorization: `Bearer ${effectiveToken.value}`,
+      },
+    })
+    if (!res.ok) {
+      return
+    }
+    const data = await res.json()
+    notifications.value = data.map(normalizeNotification)
+    saveNotificationsToStorage()
+  } catch (e) {
+    console.error('Error refrescando notificaciones', e)
+  }
+}
+
+const startNotificationPolling = () => {
+  if (notificationsPoll) return
+  notificationsPoll = window.setInterval(() => {
+    refreshNotifications()
+  }, 3000)
+}
+
 const markAsRead = async (id: string) => {
   try {
     await fetch(`http://localhost:8000/notifications/${id}/mark-as-read`, {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${props.token}`,
+        Authorization: `Bearer ${effectiveToken.value}`,
       },
     })
     // Update local state
@@ -154,9 +192,16 @@ const toggleDropdown = () => {
   isDropdownOpen.value = !isDropdownOpen.value
 }
 
-const getUnreadCount = () => {
-  return notifications.value.filter(n => !n.read_at).length
-}
+const unreadCount = computed(() => notifications.value.filter(n => !n.read_at).length)
+
+// Watch for new unread notifications and trigger bell animation
+watch(unreadCount, (newCount) => {
+  if (newCount > prevUnreadCount) {
+    hasNewNotification.value = true
+    setTimeout(() => { hasNewNotification.value = false }, 2000)
+  }
+  prevUnreadCount = newCount
+})
 
 onMounted(() => {
   // Load from localStorage first for instant display
@@ -165,11 +210,15 @@ onMounted(() => {
   loadNotifications()
   // Initialize real-time updates
   initEcho()
+  startNotificationPolling()
 })
 
 onBeforeUnmount(() => {
   if (echo) {
     echo.disconnect()
+  }
+  if (notificationsPoll) {
+    window.clearInterval(notificationsPoll)
   }
 })
 </script>
@@ -177,12 +226,12 @@ onBeforeUnmount(() => {
 <template>
   <div class="notifications-wrapper">
     <!-- Bell Button -->
-    <button class="bell-button" @click="toggleDropdown" aria-label="Notifications">
-      <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <button :class="['bell-button', { 'bell-shake': hasNewNotification }]" @click="toggleDropdown" aria-label="Notifications">
+      <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" :stroke="unreadCount > 0 ? '#ef4444' : 'currentColor'" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
         <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
       </svg>
-      <span v-if="getUnreadCount() > 0" class="badge pulse-animation">{{ getUnreadCount() }}</span>
+      <span v-if="unreadCount > 0" class="badge pulse-animation">{{ unreadCount }}</span>
     </button>
 
     <!-- Dropdown Menu -->
@@ -299,6 +348,22 @@ onBeforeUnmount(() => {
 
 .pulse-animation {
   animation: pulse 2s infinite;
+}
+
+@keyframes bell-shake {
+  0%   { transform: rotate(0deg); }
+  15%  { transform: rotate(15deg); }
+  30%  { transform: rotate(-12deg); }
+  45%  { transform: rotate(10deg); }
+  60%  { transform: rotate(-8deg); }
+  75%  { transform: rotate(5deg); }
+  90%  { transform: rotate(-3deg); }
+  100% { transform: rotate(0deg); }
+}
+
+.bell-shake svg {
+  animation: bell-shake 0.6s ease-in-out;
+  transform-origin: top center;
 }
 
 /* Dropdown */

@@ -1,5 +1,10 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
+import { useHttpAction } from '../composables/useHttpAction'
+import HttpActionButton from './HttpActionButton.vue'
+import ApiResultAlert from './ApiResultAlert.vue'
+
+const { loading, result, run } = useHttpAction()
 
 const isLogin = ref(true)
 const isAdminLogin = ref(false)
@@ -8,7 +13,6 @@ const email = ref('')
 const adminUsername = ref('')
 const password = ref('')
 const name = ref('')
-const error = ref('')
 const info = ref('')
 
 const emit = defineEmits<{
@@ -18,7 +22,6 @@ const emit = defineEmits<{
 const toggleForm = () => {
   isLogin.value = !isLogin.value
   isAdminLogin.value = false
-  error.value = ''
   info.value = ''
 }
 
@@ -28,7 +31,6 @@ const showAdminLogin = () => {
     isAdminLogin.value = false
     adminUsername.value = ''
     password.value = ''
-    error.value = ''
     info.value = 'Ingresa con el email y contraseña del residente administrador.'
     return
   }
@@ -37,7 +39,6 @@ const showAdminLogin = () => {
   isAdminLogin.value = true
   email.value = ''
   password.value = ''
-  error.value = ''
   info.value = ''
 }
 
@@ -45,42 +46,39 @@ const showResidentLogin = () => {
   isAdminLogin.value = false
   adminUsername.value = ''
   password.value = ''
-  error.value = ''
   info.value = ''
 }
 
-const submit = async () => {
-  error.value = ''
-  info.value = ''
-  const url = isAdminLogin.value ? '/auth/admin-master-login' : isLogin.value ? '/auth/login' : '/auth/register'
-  const payload = isAdminLogin.value
-    ? { username: adminUsername.value, password: password.value }
-    : isLogin.value
-    ? { email: email.value, password: password.value }
-    : { name: name.value, email: email.value, password: password.value }
+const submit = () =>
+  run(async () => {
+    info.value = ''
+    const url = isAdminLogin.value ? '/auth/admin-master-login' : isLogin.value ? '/auth/login' : '/auth/register'
+    const payload = isAdminLogin.value
+      ? { username: adminUsername.value, password: password.value }
+      : isLogin.value
+        ? { email: email.value, password: password.value }
+        : { name: name.value, email: email.value, password: password.value }
 
-  try {
     const res = await fetch(`http://localhost:8000${url}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     })
     const data = await res.json()
+
     if (!res.ok) {
-      error.value = data.error || 'Error'
-      return
+      return { ok: false, message: data.error || 'Error al procesar la solicitud.' }
     }
+
     if (isLogin.value || isAdminLogin.value) {
       emit('login', data.token, data.user)
-    } else {
-      isLogin.value = true
-      password.value = ''
-      error.value = 'Registered. Now login.'
+      return { ok: true, message: 'Sesión iniciada correctamente.' }
     }
-  } catch (e) {
-    error.value = 'Network error'
-  }
-}
+
+    isLogin.value = true
+    password.value = ''
+    return { ok: true, message: 'Cuenta creada. Ahora puedes iniciar sesión.' }
+  })
 
 onMounted(async () => {
   try {
@@ -116,9 +114,9 @@ onMounted(async () => {
           <label>Contraseña</label>
           <input v-model="password" type="password" placeholder="Contraseña" required />
         </div>
-        <button type="submit" class="btn">
+        <HttpActionButton type="submit" class="btn" :loading="loading" loading-label="Procesando...">
           {{ isAdminLogin ? 'Entrar al panel' : isLogin ? 'Ingresar' : 'Crear cuenta' }}
-        </button>
+        </HttpActionButton>
       </form>
       <p v-if="!isAdminLogin" class="toggle">
         {{ isLogin ? '¿Sin cuenta?' : '¿Ya tienes cuenta?' }}
@@ -137,7 +135,7 @@ onMounted(async () => {
         </button>
       </p>
       <div v-if="info" class="info">{{ info }}</div>
-      <div v-if="error" class="error">{{ error }}</div>
+      <ApiResultAlert :result="result" />
     </div>
   </main>
 </template>
@@ -220,16 +218,6 @@ input:focus {
   text-decoration: underline;
   cursor: pointer;
   font-weight: 600;
-}
-
-.error {
-  margin-top: 1rem;
-  padding: 0.75rem;
-  background: #fee;
-  border-left: 4px solid #f66;
-  color: #c33;
-  border-radius: 0.25rem;
-  font-size: 0.875rem;
 }
 
 .info {

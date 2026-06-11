@@ -1,6 +1,26 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
+import { useHttpAction } from '../composables/useHttpAction'
+import HttpActionButton from './HttpActionButton.vue'
+import ApiResultAlert from './ApiResultAlert.vue'
 import NotificationsButton from './NotificationsButton.vue'
+import UserManagement from './UserManagement.vue'
+
+const {
+  loading: assigningAdmin,
+  result: assignResult,
+  run: runAssignAdmin,
+} = useHttpAction()
+const {
+  loading: sendingNotification,
+  result: notifyResult,
+  run: runSendNotification,
+} = useHttpAction()
+
+// Monitor de cambios en sendingNotification
+watch(sendingNotification, (newVal) => {
+  console.log('👁️ sendingNotification cambió a:', newVal)
+})
 
 const props = defineProps<{
   token: string
@@ -22,11 +42,7 @@ interface ResidentUser {
 
 // State
 const users = ref<ResidentUser[]>([])
-const loading = ref(false)
-const assigningAdmin = ref(false)
 const selectedAdminId = ref<number | ''>('')
-const success = ref('')
-const error = ref('')
 const lastNotification = ref<{
   recipient: string
   type: string
@@ -80,18 +96,18 @@ const loadUsers = async () => {
   }
 }
 
-const assignAdministrator = async (userId = selectedAdminId.value) => {
+const assignAdministrator = (userId = selectedAdminId.value) => {
   if (!userId) {
-    error.value = 'Selecciona un residente para asignarlo como administrador.'
+    assignResult.value = {
+      ok: false,
+      message: 'Selecciona un residente para asignarlo como administrador.',
+    }
     return
   }
 
   selectedAdminId.value = userId
-  assigningAdmin.value = true
-  error.value = ''
-  success.value = ''
 
-  try {
+  return runAssignAdmin(async () => {
     const res = await fetch('http://localhost:8000/admin/assign-administrator', {
       method: 'POST',
       headers: {
@@ -104,8 +120,7 @@ const assignAdministrator = async (userId = selectedAdminId.value) => {
     const data = await res.json()
 
     if (!res.ok) {
-      error.value = data.error || 'No se pudo asignar el administrador.'
-      return
+      return { ok: false, message: data.error || 'No se pudo asignar el administrador.' }
     }
 
     users.value = users.value.map(u => ({
@@ -113,12 +128,12 @@ const assignAdministrator = async (userId = selectedAdminId.value) => {
       role: u.id === data.user.id ? 'admin' : 'resident',
       is_admin: u.id === data.user.id,
     }))
-    success.value = `${data.user.name} ahora es el administrador del condominio.`
-  } catch (e) {
-    error.value = 'Error de red. Verifica que el servidor esté activo.'
-  } finally {
-    assigningAdmin.value = false
-  }
+
+    return {
+      ok: true,
+      message: `${data.user.name} ahora es el administrador del condominio.`,
+    }
+  })
 }
 
 const onTypeChange = () => {
@@ -126,17 +141,27 @@ const onTypeChange = () => {
   form.value.title = ''
 }
 
-const sendNotification = async () => {
+const handleSubmitNotification = (e: Event) => {
+  e.preventDefault()
+  console.log('📤 Iniciando envío de notificación', { loading: sendingNotification.value })
+  sendNotification()
+}
+
+const sendNotification = () => {
+  console.log('📝 sendNotification llamado')
   if (!form.value.title || !form.value.message) {
-    error.value = 'Por favor completa el título y el mensaje.'
+    notifyResult.value = {
+      ok: false,
+      message: 'Por favor completa el título y el mensaje.',
+    }
     return
   }
-  loading.value = true
-  error.value = ''
-  success.value = ''
-  lastNotification.value = null
 
-  try {
+  console.log('📤 Llamando runSendNotification')
+  runSendNotification(async () => {
+    console.log('🌐 Dentro de runSendNotification, enviando HTTP')
+    lastNotification.value = null
+
     const notificationSummary = {
       recipient: selectedRecipient.value,
       type: selectedType.value?.label ?? form.value.type,
@@ -163,21 +188,17 @@ const sendNotification = async () => {
     })
 
     if (res.ok) {
-      success.value = '✅ Notificación enviada exitosamente.'
       lastNotification.value = notificationSummary
       form.value.title = ''
       form.value.message = ''
       form.value.details = {}
       form.value.user_id = 'all'
-    } else {
-      const data = await res.json()
-      error.value = data.error || 'Error al enviar la notificación.'
+      return { ok: true, message: 'Notificación enviada exitosamente.' }
     }
-  } catch (e) {
-    error.value = 'Error de red. Verifica que el servidor esté activo.'
-  } finally {
-    loading.value = false
-  }
+
+    const data = await res.json()
+    return { ok: false, message: data.error || 'Error al enviar la notificación.' }
+  })
 }
 
 onMounted(loadUsers)
@@ -255,10 +276,18 @@ onMounted(loadUsers)
                 </option>
               </select>
             </div>
-            <button class="assign-btn" type="button" :disabled="assigningAdmin" @click="() => assignAdministrator()">
-              {{ assigningAdmin ? 'Guardando...' : 'Guardar administrador' }}
-            </button>
+            <HttpActionButton
+              class="assign-btn"
+              type="button"
+              :loading="assigningAdmin"
+              loading-label="Guardando..."
+              @click="() => assignAdministrator()"
+            >
+              Guardar administrador
+            </HttpActionButton>
           </div>
+
+          <ApiResultAlert :result="assignResult" />
 
           <div v-if="!users.length" class="empty-residents">
             No hay residentes registrados todavía.
@@ -273,7 +302,7 @@ onMounted(loadUsers)
           <p>Selecciona el tipo, destinatario y completa la información.</p>
         </div>
 
-        <form @submit.prevent="sendNotification" class="notify-form">
+        <form @submit="handleSubmitNotification" class="notify-form">
 
           <!-- Type selector -->
           <div class="field-group">
@@ -349,9 +378,9 @@ onMounted(loadUsers)
 
           <!-- Submit -->
           <div class="form-footer">
-            <div v-if="error" class="alert alert-error">{{ error }}</div>
-            <div v-if="success" class="alert alert-success">{{ success }}</div>
-            <div v-if="lastNotification" class="sent-summary">
+            <ApiResultAlert :result="notifyResult" />
+            <Transition name="api-alert">
+              <div v-if="lastNotification && notifyResult?.ok" key="sent-summary" class="sent-summary">
               <h3>Notificación enviada a: {{ lastNotification.recipient }}</h3>
               <div class="sent-summary-grid">
                 <div>
@@ -370,18 +399,24 @@ onMounted(loadUsers)
                   <strong>{{ value }}</strong>
                 </div>
               </div>
-            </div>
-            <button
+              </div>
+            </Transition>
+            <HttpActionButton
               type="submit"
               class="send-btn"
-              :disabled="loading"
+              :loading="sendingNotification"
+              loading-label="Enviando..."
               :style="{ background: selectedType?.color }"
             >
-              <span v-if="loading">Enviando...</span>
-              <span v-else>{{ selectedType?.icon }} Enviar Notificación</span>
-            </button>
+              {{ selectedType?.icon }} Enviar Notificación
+            </HttpActionButton>
           </div>
         </form>
+      </div>
+
+      <!-- Gestión de Usuarios CRUD -->
+      <div class="form-card" style="overflow: visible;">
+        <UserManagement />
       </div>
 
     </div>

@@ -1,4 +1,5 @@
 import './assets/main.css'
+import './assets/api-transitions.css'
 
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
