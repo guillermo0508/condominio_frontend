@@ -19,7 +19,6 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api'
 export const useUserStore = defineStore('user', () => {
   const authStore = useAuthStore()
 
-  // State
   const users = ref<User[]>([])
   const isLoading = ref(false)
   const error = ref<string | null>(null)
@@ -30,10 +29,8 @@ export const useUserStore = defineStore('user', () => {
     lastPage: 1,
   })
 
-  // Computed
   const totalUsers = computed(() => pagination.value.total)
 
-  // Methods
   async function fetchUsers(page = 1) {
     isLoading.value = true
     error.value = null

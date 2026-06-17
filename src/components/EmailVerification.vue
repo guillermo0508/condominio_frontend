@@ -2,7 +2,6 @@
   <div class="verification-container">
     <div class="verification-card">
 
-      <!-- Step 1: Enter verification code -->
       <template v-if="step === 'code'">
         <h1>✉️ Verifica tu Email</h1>
         <p class="subtitle">Ingresa el código de 6 dígitos que recibiste en <strong>{{ email }}</strong></p>
@@ -48,7 +47,6 @@
         </div>
       </template>
 
-      <!-- Step 2: Set password (only for admin-invited users) -->
       <template v-else-if="step === 'set-password'">
         <div class="step-header">
           <span class="step-icon">🔐</span>
@@ -95,12 +93,11 @@
         </form>
       </template>
 
-      <!-- Step 3: Done (redirect) -->
       <template v-else-if="step === 'done'">
         <div class="done-state">
           <span class="done-icon">🎉</span>
           <h1>¡Cuenta Activada!</h1>
-          <p class="subtitle">Tu cuenta ha sido activada exitosamente. Redirigiendo al inicio de sesión...</p>
+          <p class="subtitle">Tu cuenta ha sido activada exitosamente. Redirigiendo...</p>
         </div>
       </template>
 
@@ -112,6 +109,7 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useRouter } from 'vue-router'
+import { getDeviceHeaders } from '@/utils/device'
 
 interface Props {
   email: string
@@ -188,7 +186,6 @@ async function handleVerify() {
       return
     }
 
-    // If admin-invited user needs to set password
     if (data.needs_password && data.setup_token) {
       setupToken.value = data.setup_token
       verifiedUser.value = data.user
@@ -196,7 +193,6 @@ async function handleVerify() {
       return
     }
 
-    // Normal flow: email verified, redirect to login
     successMessage.value = 'Email verificado correctamente. Redirigiendo...'
     step.value = 'done'
     setTimeout(() => router.push({ name: 'login' }), 2000)
@@ -229,6 +225,7 @@ async function handleSetPassword() {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
         'Authorization': `Bearer ${setupToken.value}`,
+        ...getDeviceHeaders(),
       },
       body: JSON.stringify({
         password: password.value,
@@ -243,8 +240,9 @@ async function handleSetPassword() {
       return
     }
 
+    authStore.setSession(data.access_token, data.user)
     step.value = 'done'
-    setTimeout(() => router.push({ name: 'login' }), 2000)
+    setTimeout(() => router.push({ name: 'home' }), 2000)
   } catch (err) {
     error.value = 'Error de conexión. Intenta de nuevo.'
   } finally {

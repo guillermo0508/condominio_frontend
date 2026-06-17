@@ -36,7 +36,6 @@ const props = defineProps<{
   animation: slideIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-/* Estilos para éxito */
 .api-result-alert--success {
   background-color: #ecfdf5;
   border-color: #10b981;
@@ -49,7 +48,6 @@ const props = defineProps<{
   font-size: 1.25rem;
 }
 
-/* Estilos para error */
 .api-result-alert--error {
   background-color: #fef2f2;
   border-color: #ef4444;
@@ -76,7 +74,6 @@ const props = defineProps<{
   line-height: 1.5;
 }
 
-/* Animación de entrada */
 @keyframes slideIn {
   from {
     opacity: 0;
@@ -88,7 +85,6 @@ const props = defineProps<{
   }
 }
 
-/* Transiciones de Vue */
 .api-alert-enter-active {
   transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
 }

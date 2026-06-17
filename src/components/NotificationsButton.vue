@@ -34,13 +34,11 @@ const hasNewNotification = ref(false)
 let echo: Echo<'reverb'> | null = null
 let prevUnreadCount = 0
 
-// Use authStore token as fallback if prop is empty
 const effectiveToken = computed(() => props.token || authStore.token || '')
 const effectiveUser = computed(() => (props.user?.id ? props.user : authStore.user) as { id: number; name: string; email: string })
 
 const NOTIFICATIONS_STORAGE_KEY = computed(() => `notifications_${effectiveUser.value?.id}`)
 
-// Required for Laravel Echo to work with Pusher/Reverb
 window.Pusher = Pusher
 
 const normalizeNotification = (notification: any): Notification => {
@@ -94,7 +92,6 @@ const initEcho = () => {
     },
   })
 
-  // Laravel BroadcastNotificationCreated event is dispatched when broadcasting a notification
   echo
     .private(`App.Models.User.${effectiveUser.value?.id}`)
     .notification((notification: any) => {
@@ -119,6 +116,15 @@ const loadNotifications = async () => {
         Authorization: `Bearer ${effectiveToken.value}`,
       },
     })
+    if (!res.ok) {
+      if (res.status === 401) {
+        authStore.logout().then(() => {
+          window.location.href = '/login'
+        })
+      }
+      return
+    }
+
     if (res.ok) {
       const data = await res.json()
       notifications.value = data.map(normalizeNotification)
@@ -137,6 +143,11 @@ const refreshNotifications = async () => {
       },
     })
     if (!res.ok) {
+      if (res.status === 401) {
+        authStore.logout().then(() => {
+          window.location.href = '/login'
+        })
+      }
       return
     }
     const data = await res.json()
@@ -162,7 +173,6 @@ const markAsRead = async (id: string) => {
         Authorization: `Bearer ${effectiveToken.value}`,
       },
     })
-    // Update local state
     const notif = notifications.value.find(n => n.id === id)
     if (notif) {
       notif.read_at = new Date().toISOString()
@@ -176,7 +186,7 @@ const markAsRead = async (id: string) => {
 const openNotification = (notif: Notification) => {
   selectedNotification.value = notif
   isDropdownOpen.value = false
-  
+
   if (!notif.read_at) {
     notif.read_at = new Date().toISOString()
     saveNotificationsToStorage()
@@ -194,7 +204,6 @@ const toggleDropdown = () => {
 
 const unreadCount = computed(() => notifications.value.filter(n => !n.read_at).length)
 
-// Watch for new unread notifications and trigger bell animation
 watch(unreadCount, (newCount) => {
   if (newCount > prevUnreadCount) {
     hasNewNotification.value = true
@@ -204,11 +213,8 @@ watch(unreadCount, (newCount) => {
 })
 
 onMounted(() => {
-  // Load from localStorage first for instant display
   loadNotificationsFromStorage()
-  // Then sync with server
   loadNotifications()
-  // Initialize real-time updates
   initEcho()
   startNotificationPolling()
 })
@@ -225,7 +231,6 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="notifications-wrapper">
-    <!-- Bell Button -->
     <button :class="['bell-button', { 'bell-shake': hasNewNotification }]" @click="toggleDropdown" aria-label="Notifications">
       <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" :stroke="unreadCount > 0 ? '#ef4444' : 'currentColor'" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
@@ -234,7 +239,6 @@ onBeforeUnmount(() => {
       <span v-if="unreadCount > 0" class="badge pulse-animation">{{ unreadCount }}</span>
     </button>
 
-    <!-- Dropdown Menu -->
     <div v-if="isDropdownOpen" class="dropdown-menu">
       <div class="dropdown-header">
         <h4>Notificaciones</h4>
@@ -243,9 +247,9 @@ onBeforeUnmount(() => {
         <p>No hay notificaciones</p>
       </div>
       <div class="notification-list" v-else>
-        <div 
-          v-for="notif in notifications" 
-          :key="notif.id" 
+        <div
+          v-for="notif in notifications"
+          :key="notif.id"
           :class="['notification-item', { read: notif.read_at }]"
           @click="openNotification(notif)"
         >
@@ -264,7 +268,6 @@ onBeforeUnmount(() => {
       </div>
     </div>
 
-    <!-- Modal -->
     <div v-if="selectedNotification" class="modal-overlay" @click.self="closeNotification">
       <div class="modal-content fade-in">
         <div class="modal-header">
@@ -281,7 +284,7 @@ onBeforeUnmount(() => {
         </div>
         <div class="modal-body">
           <p class="modal-msg">{{ selectedNotification.data.message }}</p>
-          
+
           <div v-if="selectedNotification.data.details && Object.keys(selectedNotification.data.details).length > 0" class="details-box">
             <h4>Detalles Adicionales</h4>
             <div class="details-grid">
@@ -307,7 +310,6 @@ onBeforeUnmount(() => {
   font-family: 'Inter', system-ui, sans-serif;
 }
 
-/* Bell Button */
 .bell-button {
   background: transparent;
   border: none;
@@ -366,7 +368,6 @@ onBeforeUnmount(() => {
   transform-origin: top center;
 }
 
-/* Dropdown */
 .dropdown-menu {
   position: absolute;
   top: calc(100% + 10px);
@@ -464,7 +465,6 @@ onBeforeUnmount(() => {
   overflow: hidden;
 }
 
-/* Modal */
 .modal-overlay {
   position: fixed;
   top: 0;

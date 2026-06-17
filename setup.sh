@@ -1,6 +1,5 @@
 #!/bin/bash
 
-# Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -9,13 +8,11 @@ NC='\033[0m'
 
 echo -e "${BLUE}🚀 SETUP FRONTEND - Condominio${NC}\n"
 
-# Check if in correct directory
 if [ ! -f "package.json" ]; then
     echo -e "${RED}❌ Error: Este script debe ejecutarse en el directorio condominiofrontend${NC}"
     exit 1
 fi
 
-# 1. Install dependencies
 echo -e "${YELLOW}1️⃣  Instalando dependencias...${NC}"
 npm install
 if [ $? -eq 0 ]; then
@@ -25,7 +22,6 @@ else
     exit 1
 fi
 
-# 2. Check .env file
 echo -e "${YELLOW}2️⃣  Configurando .env...${NC}"
 if [ ! -f ".env" ]; then
     cp .env.example .env
@@ -34,7 +30,6 @@ else
     echo -e "${GREEN}✅ Archivo .env ya existe${NC}\n"
 fi
 
-# Final instructions
 echo -e "${BLUE}════════════════════════════════════════════════════${NC}"
 echo -e "${GREEN}✅ SETUP FRONTEND COMPLETADO!${NC}"
 echo -e "${BLUE}════════════════════════════════════════════════════${NC}\n"

@@ -1,71 +1,78 @@
 <template>
   <div class="register-container">
-    <div class="register-card">
-      <h1>Crear Cuenta</h1>
-      <p class="subtitle">Regístrate en nuestra plataforma de gestión de condominios</p>
+    <div class="register-sidebar">
+      <h2>Condominio</h2>
+      <p>Tu portal de gestión residencial</p>
+    </div>
 
-      <form @submit.prevent="handleRegister">
-        <div class="form-group">
-          <label for="name">Nombre Completo</label>
-          <input
-            v-model="form.name"
-            id="name"
-            type="text"
-            placeholder="Juan Pérez"
-            required
-          />
-        </div>
+    <div class="register-content">
+      <div class="register-card">
+        <h1>Crear Cuenta</h1>
+        <p class="subtitle">Regístrate en nuestra plataforma</p>
 
-        <div class="form-group">
-          <label for="email">Correo Electrónico</label>
-          <input
-            v-model="form.email"
-            id="email"
-            type="email"
-            placeholder="correo@example.com"
-            required
-          />
-        </div>
+        <form @submit.prevent="handleRegister">
+          <div class="form-group">
+            <label for="name">Nombre Completo</label>
+            <input
+              v-model="form.name"
+              id="name"
+              type="text"
+              placeholder="Juan Pérez"
+              required
+            />
+          </div>
 
-        <div class="form-group">
-          <label for="password">Contraseña</label>
-          <input
-            v-model="form.password"
-            id="password"
-            type="password"
-            placeholder="Mínimo 8 caracteres"
-            required
-          />
-          <small>Debe tener al menos 8 caracteres</small>
-        </div>
+          <div class="form-group">
+            <label for="email">Correo Electrónico</label>
+            <input
+              v-model="form.email"
+              id="email"
+              type="email"
+              placeholder="correo@example.com"
+              required
+            />
+          </div>
 
-        <div class="form-group">
-          <label for="passwordConfirmation">Confirmar Contraseña</label>
-          <input
-            v-model="form.passwordConfirmation"
-            id="passwordConfirmation"
-            type="password"
-            placeholder="Confirma tu contraseña"
-            required
-          />
-        </div>
+          <div class="form-group">
+            <label for="password">Contraseña</label>
+            <input
+              v-model="form.password"
+              id="password"
+              type="password"
+              placeholder="Mínimo 8 caracteres"
+              required
+            />
+            <small>Debe tener al menos 8 caracteres</small>
+          </div>
 
-        <div v-if="error" class="error-message">
-          {{ error }}
-        </div>
+          <div class="form-group">
+            <label for="passwordConfirmation">Confirmar Contraseña</label>
+            <input
+              v-model="form.passwordConfirmation"
+              id="passwordConfirmation"
+              type="password"
+              placeholder="Confirma tu contraseña"
+              required
+            />
+          </div>
 
-        <button
-          type="submit"
-          :disabled="isLoading"
-          class="btn-primary"
-        >
-          {{ isLoading ? 'Registrando...' : 'Registrarse' }}
-        </button>
-      </form>
+          <div v-if="error" class="error-message">
+            {{ error }}
+          </div>
 
-      <p class="login-link">
-        ¿Ya tienes cuenta? <router-link to="/login">Inicia sesión aquí</router-link>
-      </p>
+          <button
+            type="submit"
+            :disabled="isLoading"
+            class="btn-primary"
+          >
+            {{ isLoading ? 'Registrando...' : 'Registrarse' }}
+          </button>
+        </form>
+
+        <p class="login-link">
+          ¿Ya tienes cuenta? <router-link to="/login">Inicia sesión aquí</router-link>
+        </p>
+      </div>
     </div>
   </div>
 </template>
@@ -106,7 +113,6 @@ async function handleRegister() {
       form.value.passwordConfirmation,
     )
 
-    // Redirect to verification page
     router.push({
       name: 'verify-email',
       params: { email: form.value.email },
@@ -123,29 +129,59 @@ async function handleRegister() {
 .register-container {
   min-height: 100vh;
   display: flex;
+  background: #f4f5f7;
+}
+
+.register-sidebar {
+  width: 250px;
+  background: #111827;
+  color: white;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 2rem;
+  flex-shrink: 0;
+}
+
+.register-sidebar h2 {
+  font-size: 2rem;
+  margin-bottom: 1rem;
+  letter-spacing: 1px;
+}
+
+.register-sidebar p {
+  color: #9ca3af;
+  text-align: center;
+  font-size: 1.1rem;
+}
+
+.register-content {
+  flex: 1;
+  display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  padding: 20px;
+  padding: 2rem;
 }
 
 .register-card {
   background: white;
-  border-radius: 10px;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+  border-radius: 12px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
   padding: 40px;
   max-width: 400px;
   width: 100%;
 }
 
 h1 {
-  color: #333;
-  margin-bottom: 10px;
+  color: #111827;
+  margin-bottom: 8px;
   text-align: center;
+  font-size: 1.75rem;
 }
 
 .subtitle {
-  color: #666;
+  color: #6b7280;
   text-align: center;
   margin-bottom: 30px;
   font-size: 14px;
@@ -159,76 +195,89 @@ h1 {
 
 label {
   margin-bottom: 8px;
-  color: #333;
+  color: #374151;
   font-weight: 500;
+  font-size: 0.95rem;
 }
 
 input {
   padding: 12px;
-  border: 1px solid #ddd;
-  border-radius: 5px;
-  font-size: 14px;
-  transition: border-color 0.3s;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 15px;
+  transition: all 0.2s;
+  background-color: #f9fafb;
 }
 
 input:focus {
   outline: none;
-  border-color: #667eea;
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+  border-color: #111827;
+  background-color: white;
+  box-shadow: 0 0 0 2px rgba(17, 24, 39, 0.1);
 }
 
 small {
-  color: #999;
+  color: #9ca3af;
   margin-top: 4px;
   font-size: 12px;
 }
 
 .error-message {
-  background: #fee;
-  color: #c33;
+  background: #fef2f2;
+  color: #dc2626;
   padding: 12px;
-  border-radius: 5px;
+  border-radius: 8px;
   margin-bottom: 20px;
-  border-left: 4px solid #c33;
+  font-size: 0.9rem;
+  border-left: 4px solid #ef4444;
 }
 
 .btn-primary {
   width: 100%;
   padding: 12px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: #111827;
   color: white;
   border: none;
-  border-radius: 5px;
+  border-radius: 8px;
   font-size: 16px;
   font-weight: 600;
   cursor: pointer;
-  transition: transform 0.2s, box-shadow 0.2s;
+  transition: background-color 0.2s;
   margin-bottom: 20px;
 }
 
 .btn-primary:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+  background: #1f2937;
 }
 
 .btn-primary:disabled {
-  opacity: 0.6;
+  opacity: 0.7;
   cursor: not-allowed;
 }
 
 .login-link {
   text-align: center;
-  color: #666;
+  color: #6b7280;
   font-size: 14px;
 }
 
 .login-link a {
-  color: #667eea;
+  color: #111827;
   text-decoration: none;
   font-weight: 600;
 }
 
 .login-link a:hover {
   text-decoration: underline;
+}
+
+@media (max-width: 768px) {
+  .register-container {
+    flex-direction: column;
+  }
+  .register-sidebar {
+    width: 100%;
+    padding: 3rem 2rem;
+  }
 }
 </style>

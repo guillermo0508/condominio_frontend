@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import { getDeviceHeaders } from '@/utils/device'
 
 interface User {
   id: number
@@ -20,17 +21,21 @@ interface AuthState {
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api'
 
 export const useAuthStore = defineStore('auth', () => {
-  // State
-  const token = ref<string | null>(sessionStorage.getItem('auth_token'))
+  const token = ref<string | null>(localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token'))
   const user = ref<User | null>(null)
   const isLoading = ref(false)
   const error = ref<string | null>(null)
 
-  // Computed
   const isAuthenticated = computed(() => !!token.value)
   const isAdmin = computed(() => user.value?.is_admin || user.value?.role === 'admin')
 
-  // Methods
+  function setSession(accessToken: string, currentUser: User) {
+    token.value = accessToken
+    user.value = currentUser
+    localStorage.setItem('auth_token', accessToken)
+    sessionStorage.removeItem('auth_token')
+  }
+
   async function register(name: string, email: string, password: string, passwordConfirmation: string) {
     isLoading.value = true
     error.value = null
@@ -107,6 +112,7 @@ export const useAuthStore = defineStore('auth', () => {
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
+          ...getDeviceHeaders(),
         },
         body: JSON.stringify({
           email,
@@ -120,9 +126,7 @@ export const useAuthStore = defineStore('auth', () => {
         throw new Error(data.message || 'Login failed')
       }
 
-      token.value = data.access_token
-      user.value = data.user
-      sessionStorage.setItem('auth_token', data.access_token)
+      setSession(data.access_token, data.user)
 
       return data
     } catch (err) {
@@ -184,6 +188,7 @@ export const useAuthStore = defineStore('auth', () => {
     } finally {
       token.value = null
       user.value = null
+      localStorage.removeItem('auth_token')
       sessionStorage.removeItem('auth_token')
       isLoading.value = false
     }
@@ -225,6 +230,7 @@ export const useAuthStore = defineStore('auth', () => {
     error,
     isAuthenticated,
     isAdmin,
+    setSession,
     register,
     verifyEmail,
     login,

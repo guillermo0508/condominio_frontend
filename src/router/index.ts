@@ -47,14 +47,12 @@ const router = createRouter({
 router.beforeEach(async (to, from, next) => {
   const authStore = useAuthStore()
 
-  // Check if user is authenticated
   if (to.meta.requiresAuth) {
     if (!authStore.isAuthenticated) {
       next({ name: 'login' })
       return
     }
 
-    // Try to get current user if not already loaded
     if (!authStore.user) {
       try {
         await authStore.getCurrentUser()
@@ -64,14 +62,12 @@ router.beforeEach(async (to, from, next) => {
       }
     }
 
-    // Check if admin access is required
     if (to.meta.requiresAdmin && !authStore.isAdmin) {
       next({ name: 'home' })
       return
     }
   }
 
-  // Redirect authenticated users away from auth pages
   if (to.meta.requiresGuest && authStore.isAuthenticated) {
     next({ name: 'home' })
     return

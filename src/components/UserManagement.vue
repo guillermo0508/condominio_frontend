@@ -7,7 +7,6 @@
       </button>
     </div>
 
-    <!-- Search and Filter -->
     <div class="search-bar">
       <input
         v-model="searchQuery"
@@ -17,7 +16,6 @@
       />
     </div>
 
-    <!-- Users Table -->
     <div v-if="!isLoading" class="table-container">
       <table class="users-table">
         <thead>
@@ -71,7 +69,6 @@
         </tbody>
       </table>
 
-      <!-- Pagination -->
       <div class="pagination">
         <button
           :disabled="pagination.currentPage === 1"
@@ -97,12 +94,10 @@
 
     <div v-else class="loading">Cargando usuarios...</div>
 
-    <!-- Error Message -->
     <div v-if="error" class="error-message">
       {{ error }}
     </div>
 
-    <!-- Create/Edit Modal -->
     <div v-if="showCreateModal || showEditModal" class="modal-overlay" @click="closeModal">
       <div class="modal" @click.stop>
         <div class="modal-header">
@@ -110,7 +105,6 @@
           <button @click="closeModal" class="btn-close">&times;</button>
         </div>
 
-        <!-- Success message after create -->
         <div v-if="createSuccess" class="success-banner">
           <span>✅</span>
           <div>
@@ -137,7 +131,6 @@
             />
           </div>
 
-          <!-- Edit-only fields -->
           <template v-if="showEditModal">
             <div class="form-group">
               <label>Rol</label>
@@ -175,7 +168,6 @@
             </div>
           </template>
 
-          <!-- Info note for new users -->
           <div v-if="!showEditModal" class="info-note">
             📧 El usuario recibirá un código en su correo para verificar su cuenta y crear su contraseña.
           </div>
@@ -194,7 +186,6 @@
       </div>
     </div>
 
-    <!-- Delete Confirmation Modal -->
     <div v-if="showDeleteConfirm" class="modal-overlay" @click="showDeleteConfirm = false">
       <div class="modal" @click.stop>
         <div class="modal-header">
@@ -347,7 +338,6 @@ async function saveUser() {
       await userStore.updateUser(editingUserId.value, updateData)
       closeModal()
     } else {
-      // New user: only send name and email
       await userStore.createUser({ name: formData.value.name, email: formData.value.email } as any)
       createSuccess.value = true
     }
@@ -613,7 +603,6 @@ function previousPage() {
   border-left: 4px solid #c33;
 }
 
-/* Modal Styles */
 .modal-overlay {
   position: fixed;
   top: 0;

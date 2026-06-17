@@ -17,7 +17,6 @@ const {
   run: runSendNotification,
 } = useHttpAction()
 
-// Monitor de cambios en sendingNotification
 watch(sendingNotification, (newVal) => {
   console.log('👁️ sendingNotification cambió a:', newVal)
 })
@@ -40,7 +39,6 @@ interface ResidentUser {
   is_admin?: boolean
 }
 
-// State
 const users = ref<ResidentUser[]>([])
 const selectedAdminId = ref<number | ''>('')
 const lastNotification = ref<{
@@ -51,7 +49,6 @@ const lastNotification = ref<{
   details: Record<string, string>
 } | null>(null)
 
-// Form state
 const form = ref({
   user_id: 'all',
   type: 'multas',
@@ -206,7 +203,6 @@ onMounted(loadUsers)
 
 <template>
   <div class="admin-layout">
-    <!-- Top Bar -->
     <header class="topbar">
       <div class="topbar-left">
         <div class="page-title">
@@ -224,10 +220,8 @@ onMounted(loadUsers)
       </div>
     </header>
 
-    <!-- Main content -->
     <div class="admin-body">
 
-      <!-- Stats Cards -->
       <div class="stats-row">
         <div class="stat-card">
           <div class="stat-icon" style="background:#fee2e2;color:#ef4444;">⚠️</div>
@@ -295,7 +289,6 @@ onMounted(loadUsers)
         </div>
       </div>
 
-      <!-- Notification Form -->
       <div class="form-card">
         <div class="form-card-header">
           <h2>Enviar Notificación</h2>
@@ -304,7 +297,6 @@ onMounted(loadUsers)
 
         <form @submit="handleSubmitNotification" class="notify-form">
 
-          <!-- Type selector -->
           <div class="field-group">
             <label>Tipo de Notificación</label>
             <div class="type-selector">
@@ -322,7 +314,6 @@ onMounted(loadUsers)
             </div>
           </div>
 
-          <!-- Destination -->
           <div class="field-group">
             <label for="user-select">Destinatario</label>
             <select id="user-select" v-model="form.user_id" class="field-input">
@@ -333,7 +324,6 @@ onMounted(loadUsers)
             </select>
           </div>
 
-          <!-- Title -->
           <div class="field-group">
             <label for="notif-title">Título</label>
             <input
@@ -346,7 +336,6 @@ onMounted(loadUsers)
             />
           </div>
 
-          <!-- Message -->
           <div class="field-group">
             <label for="notif-message">Mensaje</label>
             <textarea
@@ -359,7 +348,6 @@ onMounted(loadUsers)
             ></textarea>
           </div>
 
-          <!-- Dynamic extra fields -->
           <div v-if="extraFields.length > 0" class="extra-fields">
             <p class="extra-fields-label">Detalles adicionales</p>
             <div class="extra-fields-grid">
@@ -376,7 +364,6 @@ onMounted(loadUsers)
             </div>
           </div>
 
-          <!-- Submit -->
           <div class="form-footer">
             <ApiResultAlert :result="notifyResult" />
             <Transition name="api-alert">
@@ -414,7 +401,6 @@ onMounted(loadUsers)
         </form>
       </div>
 
-      <!-- Gestión de Usuarios CRUD -->
       <div class="form-card" style="overflow: visible;">
         <UserManagement />
       </div>
@@ -434,7 +420,6 @@ onMounted(loadUsers)
   background: #f9fafb;
 }
 
-/* Top Bar */
 .topbar {
   display: flex;
   justify-content: space-between;
@@ -504,7 +489,6 @@ onMounted(loadUsers)
   font-size: 1rem;
 }
 
-/* Body */
 .admin-body {
   padding: 2rem;
   display: flex;
@@ -512,7 +496,6 @@ onMounted(loadUsers)
   gap: 1.5rem;
 }
 
-/* Stats */
 .stats-row {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -557,7 +540,6 @@ onMounted(loadUsers)
   color: #111827;
 }
 
-/* Form Card */
 .form-card {
   background: white;
   border-radius: 16px;
@@ -651,7 +633,6 @@ textarea.field-input {
   min-height: 80px;
 }
 
-/* Type selector */
 .type-selector {
   display: flex;
   gap: 0.75rem;
@@ -688,7 +669,6 @@ textarea.field-input {
   font-size: 1.1rem;
 }
 
-/* Extra Fields */
 .extra-fields {
   background: #f9fafb;
   border-radius: 10px;
@@ -711,7 +691,6 @@ textarea.field-input {
   gap: 1rem;
 }
 
-/* Form Footer */
 .form-footer {
   display: flex;
   flex-direction: column;

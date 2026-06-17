@@ -56,7 +56,6 @@ defineProps<{
   letter-spacing: 0.05em;
 }
 
-/* Spinner - Círculo animado */
 .btn-spinner {
   display: inline-block;
   width: 1.2em;
@@ -75,7 +74,6 @@ defineProps<{
   }
 }
 
-/* Transiciones suaves para cambio de estado */
 .btn-state-enter-active,
 .btn-state-leave-active {
   transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);

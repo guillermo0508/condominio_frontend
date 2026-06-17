@@ -1,4 +1,5 @@
-/// <reference types="vite/client" />
+
+import 'vite/client'
 
 import type Pusher from 'pusher-js'
 

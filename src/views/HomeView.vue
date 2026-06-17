@@ -1,13 +1,15 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import ChatRoom from '@/components/ChatRoom.vue'
+import UserProfile from '@/components/UserProfile.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
 
-const currentView = ref<'chat'>('chat')
+const currentView = ref<'chat' | 'profile'>('chat')
+let authCheckInterval: number | null = null
 
 onMounted(async () => {
   if (!authStore.user) {
@@ -15,7 +17,30 @@ onMounted(async () => {
       await authStore.getCurrentUser()
     } catch {
       router.push({ name: 'login' })
+      return
     }
+  }
+
+  authCheckInterval = window.setInterval(async () => {
+    if (!authStore.token) return
+    try {
+      const res = await fetch('http://localhost:8000/api/auth/me', {
+        headers: {
+          'Authorization': `Bearer ${authStore.token}`,
+          'Accept': 'application/json'
+        }
+      })
+      if (res.status === 401) {
+        handleLogout()
+      }
+    } catch (e) {
+    }
+  }, 3000)
+})
+
+onBeforeUnmount(() => {
+  if (authCheckInterval) {
+    window.clearInterval(authCheckInterval)
   }
 })
 
@@ -34,7 +59,8 @@ const goToAdmin = () => {
     <aside class="sidebar">
       <h2>Condominio</h2>
       <nav>
-        <button class="active">💬 Chat Room</button>
+        <button :class="{ active: currentView === 'chat' }" @click="currentView = 'chat'">💬 Chat Room</button>
+        <button :class="{ active: currentView === 'profile' }" @click="currentView = 'profile'">👤 Mi Perfil</button>
         <button v-if="authStore.isAdmin" @click="goToAdmin">🛡️ Admin Panel</button>
       </nav>
       <div class="sidebar-bottom">
@@ -42,7 +68,8 @@ const goToAdmin = () => {
       </div>
     </aside>
     <main class="main-content">
-      <ChatRoom :token="authStore.token!" :user="authStore.user!" />
+      <ChatRoom v-if="currentView === 'chat'" :token="authStore.token!" :user="authStore.user!" @logout="handleLogout" />
+      <UserProfile v-else-if="currentView === 'profile'" />
     </main>
   </div>
   <div v-else class="loading">Cargando...</div>

@@ -3,6 +3,7 @@ import { onMounted, ref } from 'vue'
 import { useHttpAction } from '../composables/useHttpAction'
 import HttpActionButton from './HttpActionButton.vue'
 import ApiResultAlert from './ApiResultAlert.vue'
+import { getDeviceHeaders } from '@/utils/device'
 
 const { loading, result, run } = useHttpAction()
 
@@ -61,7 +62,7 @@ const submit = () =>
 
     const res = await fetch(`http://localhost:8000${url}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...getDeviceHeaders() },
       body: JSON.stringify(payload),
     })
     const data = await res.json()
