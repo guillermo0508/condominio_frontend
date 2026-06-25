@@ -7,10 +7,13 @@
 
     <div class="login-content">
       <div class="login-card">
-        <h1>Iniciar Sesión</h1>
-        <p class="subtitle">Accede a tu cuenta</p>
+        <h1>Recuperar Contraseña</h1>
+        <p class="subtitle" v-if="step === 1">Ingresa tu correo para recibir un código de recuperación</p>
+        <p class="subtitle" v-else-if="step === 2">Ingresa el código que enviamos a tu correo y tu nueva contraseña</p>
+        <p class="subtitle" v-else>¡Contraseña restablecida con éxito!</p>
 
-        <form @submit.prevent="handleLogin">
+        <!-- Step 1: Request Code -->
+        <form @submit.prevent="handleRequestCode" v-if="step === 1">
           <div class="form-group">
             <label for="email">Correo Electrónico</label>
             <input
@@ -22,13 +25,55 @@
             />
           </div>
 
+          <div v-if="error" class="error-message">
+            {{ error }}
+          </div>
+          <div v-if="successMessage" class="success-message">
+            {{ successMessage }}
+          </div>
+
+          <button
+            type="submit"
+            :disabled="isLoading"
+            class="btn-primary"
+          >
+            {{ isLoading ? 'Enviando...' : 'Enviar Código' }}
+          </button>
+        </form>
+
+        <!-- Step 2: Reset Password -->
+        <form @submit.prevent="handleResetPassword" v-else-if="step === 2">
           <div class="form-group">
-            <label for="password">Contraseña</label>
+            <label for="code">Código de 6 dígitos</label>
+            <input
+              v-model="code"
+              id="code"
+              type="text"
+              placeholder="000000"
+              required
+              maxlength="6"
+              style="letter-spacing: 4px; text-align: center; font-size: 1.2rem; font-weight: bold;"
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="password">Nueva Contraseña</label>
             <input
               v-model="password"
               id="password"
               type="password"
-              placeholder="Tu contraseña"
+              placeholder="Nueva contraseña"
+              required
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="passwordConfirmation">Confirmar Nueva Contraseña</label>
+            <input
+              v-model="passwordConfirmation"
+              id="passwordConfirmation"
+              type="password"
+              placeholder="Confirma la nueva contraseña"
               required
             />
           </div>
@@ -37,21 +82,27 @@
             {{ error }}
           </div>
 
-          <div class="forgot-password">
-            <router-link to="/forgot-password">¿Olvidaste tu contraseña?</router-link>
-          </div>
-
           <button
             type="submit"
             :disabled="isLoading"
             class="btn-primary"
           >
-            {{ isLoading ? 'Cargando...' : 'Ingresar' }}
+            {{ isLoading ? 'Restableciendo...' : 'Restablecer Contraseña' }}
           </button>
         </form>
 
-        <p class="register-link">
-          ¿No tienes cuenta? <router-link to="/register">Regístrate aquí</router-link>
+        <!-- Step 3: Success -->
+        <div v-else class="success-container">
+          <div class="success-message" style="margin-bottom: 20px;">
+            Tu contraseña ha sido actualizada. Ya puedes iniciar sesión.
+          </div>
+          <button @click="goToLogin" class="btn-primary">
+            Ir a Iniciar Sesión
+          </button>
+        </div>
+
+        <p class="register-link" v-if="step !== 3">
+          ¿Recordaste tu contraseña? <router-link to="/login">Inicia Sesión</router-link>
         </p>
       </div>
     </div>
@@ -66,27 +117,53 @@ import { useRouter } from 'vue-router'
 const authStore = useAuthStore()
 const router = useRouter()
 
+const step = ref(1)
 const email = ref('')
+const code = ref('')
 const password = ref('')
+const passwordConfirmation = ref('')
 const isLoading = ref(false)
 const error = ref<string | null>(null)
+const successMessage = ref<string | null>(null)
 
-async function handleLogin() {
+async function handleRequestCode() {
   error.value = null
+  successMessage.value = null
   isLoading.value = true
 
   try {
-    await authStore.login(email.value, password.value)
-    router.push({ name: 'home' })
+    const res = await authStore.forgotPassword(email.value)
+    successMessage.value = res.message || 'Código enviado.'
+    step.value = 2
   } catch (err) {
-    if (authStore.error && authStore.error.includes('Account is not verified')) {
-      router.push({ name: 'verify-email', params: { email: email.value } })
-    } else {
-      error.value = authStore.error || 'Error al iniciar sesión'
-    }
+    error.value = authStore.error || 'Error al solicitar recuperación'
   } finally {
     isLoading.value = false
   }
+}
+
+async function handleResetPassword() {
+  error.value = null
+  isLoading.value = true
+
+  if (password.value !== passwordConfirmation.value) {
+    error.value = 'Las contraseñas no coinciden'
+    isLoading.value = false
+    return
+  }
+
+  try {
+    await authStore.resetPassword(email.value, code.value, password.value, passwordConfirmation.value)
+    step.value = 3
+  } catch (err) {
+    error.value = authStore.error || 'Error al restablecer contraseña'
+  } finally {
+    isLoading.value = false
+  }
+}
+
+function goToLogin() {
+  router.push({ name: 'login' })
 }
 </script>
 
@@ -191,6 +268,16 @@ input:focus {
   border-left: 4px solid #ef4444;
 }
 
+.success-message {
+  background: #f0fdf4;
+  color: #166534;
+  padding: 12px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  font-size: 0.9rem;
+  border-left: 4px solid #22c55e;
+}
+
 .btn-primary {
   width: 100%;
   padding: 12px;
@@ -227,23 +314,6 @@ input:focus {
 }
 
 .register-link a:hover {
-  text-decoration: underline;
-}
-
-.forgot-password {
-  text-align: right;
-  margin-bottom: 20px;
-}
-
-.forgot-password a {
-  color: #4b5563;
-  font-size: 14px;
-  text-decoration: none;
-  font-weight: 500;
-}
-
-.forgot-password a:hover {
-  color: #111827;
   text-decoration: underline;
 }
 

@@ -223,6 +223,69 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  async function forgotPassword(email: string) {
+    isLoading.value = true
+    error.value = null
+
+    try {
+      const response = await fetch(`${API_URL}/auth/forgot-password`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify({ email }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to request password reset')
+      }
+
+      return data
+    } catch (err) {
+      error.value = err instanceof Error ? err.message : 'An error occurred'
+      throw err
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  async function resetPassword(email: string, code: string, password: string, passwordConfirmation: string) {
+    isLoading.value = true
+    error.value = null
+
+    try {
+      const response = await fetch(`${API_URL}/auth/reset-password`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify({
+          email,
+          code,
+          password,
+          password_confirmation: passwordConfirmation,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to reset password')
+      }
+
+      return data
+    } catch (err) {
+      error.value = err instanceof Error ? err.message : 'An error occurred'
+      throw err
+    } finally {
+      isLoading.value = false
+    }
+  }
+
   return {
     token,
     user,
@@ -237,5 +300,7 @@ export const useAuthStore = defineStore('auth', () => {
     getCurrentUser,
     logout,
     resendVerificationCode,
+    forgotPassword,
+    resetPassword,
   }
 })
