@@ -4,11 +4,12 @@ import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import ChatRoom from '@/components/ChatRoom.vue'
 import UserProfile from '@/components/UserProfile.vue'
+import AdminDashboard from '@/components/AdminDashboard.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
 
-const currentView = ref<'chat' | 'profile'>('chat')
+const currentView = ref<'chat' | 'profile' | 'admin'>('chat')
 let authCheckInterval: number | null = null
 
 onMounted(async () => {
@@ -49,9 +50,7 @@ const handleLogout = async () => {
   router.push({ name: 'login' })
 }
 
-const goToAdmin = () => {
-  router.push({ name: 'admin-users' })
-}
+
 </script>
 
 <template>
@@ -59,9 +58,9 @@ const goToAdmin = () => {
     <aside class="sidebar">
       <h2>Condominio</h2>
       <nav>
-        <button :class="{ active: currentView === 'chat' }" @click="currentView = 'chat'">💬 Chat Room</button>
+        <button :class="{ active: currentView === 'chat' }" @click="currentView = 'chat'">💬 Chat</button>
         <button :class="{ active: currentView === 'profile' }" @click="currentView = 'profile'">👤 Mi Perfil</button>
-        <button v-if="authStore.isAdmin" @click="goToAdmin">🛡️ Admin Panel</button>
+        <button v-if="authStore.isAdmin" :class="{ active: currentView === 'admin' }" @click="currentView = 'admin'">🛡️ Admin Panel</button>
       </nav>
       <div class="sidebar-bottom">
         <button class="logout-btn" @click="handleLogout">Cerrar Sesión</button>
@@ -70,6 +69,7 @@ const goToAdmin = () => {
     <main class="main-content">
       <ChatRoom v-if="currentView === 'chat'" :token="authStore.token!" :user="authStore.user!" @logout="handleLogout" />
       <UserProfile v-else-if="currentView === 'profile'" />
+      <AdminDashboard v-else-if="currentView === 'admin'" :token="authStore.token!" :user="authStore.user!" />
     </main>
   </div>
   <div v-else class="loading">Cargando...</div>

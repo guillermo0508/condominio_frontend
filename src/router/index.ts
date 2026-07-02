@@ -72,6 +72,13 @@ router.beforeEach(async (to, from, next) => {
       next({ name: 'home' })
       return
     }
+
+    if (to.meta.roles && Array.isArray(to.meta.roles)) {
+      if (!authStore.user || !to.meta.roles.includes(authStore.user.role)) {
+        next({ name: 'home' })
+        return
+      }
+    }
   }
 
   if (to.meta.requiresGuest && authStore.isAuthenticated) {

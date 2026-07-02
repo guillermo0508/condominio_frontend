@@ -17,9 +17,7 @@ const {
   run: runSendNotification,
 } = useHttpAction()
 
-watch(sendingNotification, (newVal) => {
-  console.log('👁️ sendingNotification cambió a:', newVal)
-})
+
 
 const props = defineProps<{
   token: string
@@ -84,51 +82,62 @@ const loadUsers = async () => {
     const res = await fetch('http://localhost:8000/admin/users', {
       headers: { Authorization: `Bearer ${props.token}` },
     })
-    if (res.ok) {
-      users.value = await res.json()
-      selectedAdminId.value = currentAdmin.value?.id ?? ''
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}`)
     }
-  } catch (e) {
-    console.error(e)
+    users.value = await res.json()
+    selectedAdminId.value = currentAdmin.value?.id ?? ''
+  } catch (error) {
+    console.error('Error loading users:', error)
+    assignResult.value = {
+      ok: false,
+      message: 'Error al cargar los usuarios.',
+    }
   }
 }
 
 const assignAdministrator = (userId = selectedAdminId.value) => {
-  if (!userId) {
+  if (!userId || isNaN(Number(userId))) {
     assignResult.value = {
       ok: false,
-      message: 'Selecciona un residente para asignarlo como administrador.',
+      message: 'Selecciona un residente válido para asignarlo como administrador.',
     }
     return
   }
 
+  if (assigningAdmin.value) return
+
   selectedAdminId.value = userId
 
   return runAssignAdmin(async () => {
-    const res = await fetch('http://localhost:8000/admin/assign-administrator', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${props.token}`,
-      },
-      body: JSON.stringify({ user_id: userId }),
-    })
+    try {
+      const res = await fetch('http://localhost:8000/admin/assign-administrator', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${props.token}`,
+        },
+        body: JSON.stringify({ user_id: userId }),
+      })
 
-    const data = await res.json()
+      const data = await res.json()
 
-    if (!res.ok) {
-      return { ok: false, message: data.error || 'No se pudo asignar el administrador.' }
-    }
+      if (!res.ok) {
+        return { ok: false, message: data.error || 'No se pudo asignar el administrador.' }
+      }
 
-    users.value = users.value.map(u => ({
-      ...u,
-      role: u.id === data.user.id ? 'admin' : 'resident',
-      is_admin: u.id === data.user.id,
-    }))
+      users.value = users.value.map(u => ({
+        ...u,
+        role: u.id === data.user.id ? 'admin' : 'resident',
+        is_admin: u.id === data.user.id,
+      }))
 
-    return {
-      ok: true,
-      message: `${data.user.name} ahora es el administrador del condominio.`,
+      return {
+        ok: true,
+        message: `${data.user.name} ahora es el administrador del condominio.`,
+      }
+    } catch (error) {
+      return { ok: false, message: 'Error de conexión. Intenta nuevamente.' }
     }
   })
 }
@@ -140,13 +149,13 @@ const onTypeChange = () => {
 
 const handleSubmitNotification = (e: Event) => {
   e.preventDefault()
-  console.log('📤 Iniciando envío de notificación', { loading: sendingNotification.value })
   sendNotification()
 }
 
 const sendNotification = () => {
-  console.log('📝 sendNotification llamado')
-  if (!form.value.title || !form.value.message) {
+  if (sendingNotification.value) return
+  
+  if (!form.value.title || !form.value.title.trim() || !form.value.message || !form.value.message.trim()) {
     notifyResult.value = {
       ok: false,
       message: 'Por favor completa el título y el mensaje.',
@@ -154,47 +163,50 @@ const sendNotification = () => {
     return
   }
 
-  console.log('📤 Llamando runSendNotification')
   runSendNotification(async () => {
-    console.log('🌐 Dentro de runSendNotification, enviando HTTP')
-    lastNotification.value = null
+    try {
+      lastNotification.value = null
 
-    const notificationSummary = {
-      recipient: selectedRecipient.value,
-      type: selectedType.value?.label ?? form.value.type,
-      title: form.value.title,
-      message: form.value.message,
-      details: { ...form.value.details },
-    }
+      const notificationSummary = {
+        recipient: selectedRecipient.value,
+        type: selectedType.value?.label ?? form.value.type,
+        title: form.value.title,
+        message: form.value.message,
+        details: { ...form.value.details },
+      }
 
-    const payload = {
-      user_id: form.value.user_id,
-      type: form.value.type,
-      title: form.value.title,
-      message: form.value.message,
-      details: Object.keys(form.value.details).length > 0 ? form.value.details : undefined,
-    }
+      const payload = {
+        user_id: form.value.user_id,
+        type: form.value.type,
+        title: form.value.title.trim(),
+        message: form.value.message.trim(),
+        details: Object.keys(form.value.details).length > 0 ? form.value.details : undefined,
+      }
 
-    const res = await fetch('http://localhost:8000/admin/notify', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${props.token}`,
-      },
-      body: JSON.stringify(payload),
-    })
+      const res = await fetch('http://localhost:8000/admin/notify', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${props.token}`,
+        },
+        body: JSON.stringify(payload),
+      })
 
-    if (res.ok) {
+      const data = await res.json()
+
+      if (!res.ok) {
+        return { ok: false, message: data.error || 'Error al enviar la notificación.' }
+      }
+
       lastNotification.value = notificationSummary
       form.value.title = ''
       form.value.message = ''
       form.value.details = {}
       form.value.user_id = 'all'
       return { ok: true, message: 'Notificación enviada exitosamente.' }
+    } catch (error) {
+      return { ok: false, message: 'Error de conexión. Intenta nuevamente.' }
     }
-
-    const data = await res.json()
-    return { ok: false, message: data.error || 'Error al enviar la notificación.' }
   })
 }
 
@@ -202,209 +214,150 @@ onMounted(loadUsers)
 </script>
 
 <template>
-  <div class="admin-layout">
-    <header class="topbar">
-      <div class="topbar-left">
-        <div class="page-title">
-          <span class="title-icon">🛡️</span>
-          <div>
-            <h1>Panel de Administración</h1>
-            <p>Gestión de notificaciones del condominio</p>
-          </div>
-        </div>
+  <div class="admin-container">
+    <div class="dashboard-header">
+      <div class="header-content">
+        <h1>Panel de Administración</h1>
+        <p>Control central y gestión del condominio</p>
       </div>
-      <div class="topbar-right">
-        <NotificationsButton :token="token" :user="user" />
-        <div class="admin-badge">Admin</div>
-        <div class="user-avatar">{{ user.name.charAt(0).toUpperCase() }}</div>
-      </div>
-    </header>
+    </div>
 
-    <div class="admin-body">
-
-      <div class="stats-row">
-        <div class="stat-card">
-          <div class="stat-icon" style="background:#fee2e2;color:#ef4444;">⚠️</div>
-          <div>
-            <p class="stat-label">Multas</p>
-            <p class="stat-value">Activo</p>
+    <div class="admin-grid">
+      <!-- Columna Izquierda: Admin Actual y Asignar Admin -->
+      <div class="ui-card">
+        <div class="card-title-group">
+          <h2>Gestión de Administrador</h2>
+        </div>
+        
+        <div class="info-section">
+          <h3>Administrador Actual</h3>
+          <div class="info-box">
+            <div class="avatar">{{ currentAdmin?.name.charAt(0).toUpperCase() || '?' }}</div>
+            <div class="info-text">
+              <p class="name">{{ currentAdmin?.name || 'No asignado' }}</p>
+              <p class="email">{{ currentAdmin?.email || '-' }}</p>
+            </div>
           </div>
         </div>
-        <div class="stat-card">
-          <div class="stat-icon" style="background:#d1fae5;color:#10b981;">📅</div>
-          <div>
-            <p class="stat-label">Asambleas</p>
-            <p class="stat-value">Activo</p>
-          </div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-icon" style="background:#fef3c7;color:#f59e0b;">💰</div>
-          <div>
-            <p class="stat-label">Pagos</p>
-            <p class="stat-value">Activo</p>
-          </div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-icon" style="background:#ede9fe;color:#6366f1;">👥</div>
-          <div>
-            <p class="stat-label">Residentes</p>
-            <p class="stat-value">{{ users.length }}</p>
-          </div>
-        </div>
-      </div>
 
-      <div class="form-card admin-card">
-        <div class="form-card-header">
-          <h2>Administrador del Condominio</h2>
-          <p>El residente seleccionado podrá entrar al panel al iniciar sesión con su cuenta.</p>
-        </div>
-
-        <div class="admin-card-content">
-          <div class="admin-picker">
-            <div class="field-group">
-              <label for="admin-select">Residente administrador</label>
+        <div class="form-section separator">
+          <h3>Reasignar Administrador</h3>
+          <div class="form-group">
+            <label for="admin-select">Selecciona un residente</label>
+            <div class="select-wrapper">
               <select id="admin-select" v-model="selectedAdminId" class="field-input">
-                <option disabled value="">Selecciona un residente</option>
+                <option disabled value="">-- Selecciona un residente --</option>
                 <option v-for="u in users" :key="u.id" :value="u.id">
-                  {{ u.name }} ({{ u.email }}){{ u.role === 'admin' ? ' - actual' : '' }}
+                  {{ u.name }}{{ u.role === 'admin' ? ' (actual)' : '' }}
                 </option>
               </select>
             </div>
-            <HttpActionButton
-              class="assign-btn"
-              type="button"
-              :loading="assigningAdmin"
-              loading-label="Guardando..."
-              @click="() => assignAdministrator()"
-            >
-              Guardar administrador
-            </HttpActionButton>
           </div>
-
-          <ApiResultAlert :result="assignResult" />
-
-          <div v-if="!users.length" class="empty-residents">
-            No hay residentes registrados todavía.
-          </div>
+          <HttpActionButton
+            class="btn-action primary-btn"
+            type="button"
+            :loading="assigningAdmin"
+            loading-label="Guardando..."
+            @click="() => assignAdministrator()"
+          >
+            Asignar Administrador
+          </HttpActionButton>
+          <ApiResultAlert :result="assignResult" class="mt-3" />
         </div>
       </div>
 
-      <div class="form-card">
-        <div class="form-card-header">
-          <h2>Enviar Notificación</h2>
-          <p>Selecciona el tipo, destinatario y completa la información.</p>
+      <!-- Columna Derecha: Enviar Notificaciones -->
+      <div class="ui-card">
+        <div class="card-title-group">
+          <h2>Centro de Notificaciones</h2>
         </div>
-
-        <form @submit="handleSubmitNotification" class="notify-form">
-
-          <div class="field-group">
+        
+        <form @submit="handleSubmitNotification" class="notification-form">
+          <div class="form-group">
             <label>Tipo de Notificación</label>
-            <div class="type-selector">
+            <div class="type-buttons">
               <button
                 v-for="t in notificationTypes"
                 :key="t.value"
                 type="button"
-                :class="['type-btn', { selected: form.type === t.value }]"
-                :style="form.type === t.value ? { borderColor: t.color, background: t.color + '10' } : {}"
+                :class="['type-btn', { active: form.type === t.value }]"
                 @click="form.type = t.value; onTypeChange()"
               >
-                <span class="type-icon">{{ t.icon }}</span>
-                {{ t.label }}
+                <span>{{ t.label }}</span>
               </button>
             </div>
           </div>
 
-          <div class="field-group">
+          <div class="form-group">
             <label for="user-select">Destinatario</label>
-            <select id="user-select" v-model="form.user_id" class="field-input">
-              <option value="all">📢 Todos los residentes</option>
-              <option v-for="u in users" :key="u.id" :value="u.id">
-                👤 {{ u.name }} ({{ u.email }})
-              </option>
-            </select>
+            <div class="select-wrapper">
+              <select id="user-select" v-model="form.user_id" class="field-input">
+                <option value="all">Todos los residentes</option>
+                <option v-for="u in users" :key="u.id" :value="u.id">{{ u.name }}</option>
+              </select>
+            </div>
           </div>
 
-          <div class="field-group">
+          <div class="form-group">
             <label for="notif-title">Título</label>
             <input
               id="notif-title"
               v-model="form.title"
               type="text"
               class="field-input"
-              :placeholder="`Ej: ${selectedType?.label} - Depto 302`"
+              placeholder="Ej: Multa - Depto 302"
               required
             />
           </div>
 
-          <div class="field-group">
+          <div class="form-group">
             <label for="notif-message">Mensaje</label>
             <textarea
               id="notif-message"
               v-model="form.message"
               class="field-input"
               rows="3"
-              placeholder="Descripción detallada de la notificación..."
+              placeholder="Escribe los detalles aquí..."
               required
             ></textarea>
           </div>
 
-          <div v-if="extraFields.length > 0" class="extra-fields">
-            <p class="extra-fields-label">Detalles adicionales</p>
-            <div class="extra-fields-grid">
-              <div v-for="field in extraFields" :key="field.key" class="field-group">
+          <transition-group name="fade">
+            <div v-if="extraFields.length > 0" class="extra-fields" key="extra">
+              <div v-for="field in extraFields" :key="field.key" class="form-group">
                 <label :for="`detail-${field.key}`">{{ field.label }}</label>
                 <input
                   :id="`detail-${field.key}`"
                   v-model="form.details[field.key]"
                   type="text"
                   class="field-input"
-                  :placeholder="field.label"
+                  required
                 />
               </div>
             </div>
-          </div>
+          </transition-group>
 
-          <div class="form-footer">
-            <ApiResultAlert :result="notifyResult" />
-            <Transition name="api-alert">
-              <div v-if="lastNotification && notifyResult?.ok" key="sent-summary" class="sent-summary">
-              <h3>Notificación enviada a: {{ lastNotification.recipient }}</h3>
-              <div class="sent-summary-grid">
-                <div>
-                  <span>Tipo</span>
-                  <strong>{{ lastNotification.type }}</strong>
-                </div>
-                <div>
-                  <span>Título</span>
-                  <strong>{{ lastNotification.title }}</strong>
-                </div>
-              </div>
-              <p>{{ lastNotification.message }}</p>
-              <div v-if="Object.keys(lastNotification.details).length" class="sent-details">
-                <div v-for="(value, key) in lastNotification.details" :key="key">
-                  <span>{{ key }}</span>
-                  <strong>{{ value }}</strong>
-                </div>
-              </div>
-              </div>
-            </Transition>
-            <HttpActionButton
-              type="submit"
-              class="send-btn"
-              :loading="sendingNotification"
-              loading-label="Enviando..."
-              :style="{ background: selectedType?.color }"
-            >
-              {{ selectedType?.icon }} Enviar Notificación
-            </HttpActionButton>
-          </div>
+          <ApiResultAlert :result="notifyResult" class="mt-3" />
+          <HttpActionButton
+            type="submit"
+            class="btn-action primary-btn full-width"
+            :loading="sendingNotification"
+            loading-label="Enviando..."
+          >
+            Enviar Notificación
+          </HttpActionButton>
         </form>
       </div>
 
-      <div class="form-card" style="overflow: visible;">
-        <UserManagement />
+      <!-- Gestión de Usuarios (Ocupa todo el ancho) -->
+      <div class="ui-card table-card full-width">
+        <div class="card-title-group">
+          <h2>Gestión de Usuarios</h2>
+        </div>
+        <div class="mt-4">
+          <UserManagement />
+        </div>
       </div>
-
     </div>
   </div>
 </template>
@@ -412,404 +365,279 @@ onMounted(loadUsers)
 <style scoped>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
-.admin-layout {
-  font-family: 'Inter', system-ui, sans-serif;
-  display: flex;
-  flex-direction: column;
-  min-height: 100%;
-  background: #f9fafb;
+.admin-container {
+  padding: 2.5rem;
+  min-height: 100vh;
+  background-color: #f8fafc;
+  font-family: 'Inter', sans-serif;
+  color: #0f172a;
+  overflow-y: auto;
 }
 
-.topbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 1rem 2rem;
-  background: white;
-  border-bottom: 1px solid #e5e7eb;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.05);
-  flex-shrink: 0;
+.dashboard-header {
+  margin-bottom: 2rem;
+  padding: 0 0.5rem;
 }
 
-.topbar-left {
-  display: flex;
-  align-items: center;
+.header-content h1 {
+  font-size: 1.875rem;
+  font-weight: 600;
+  color: #0f172a;
+  margin: 0 0 0.5rem 0;
+  letter-spacing: -0.025em;
 }
 
-.page-title {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-}
-
-.title-icon {
-  font-size: 2rem;
-}
-
-.page-title h1 {
+.header-content p {
+  color: #64748b;
+  font-size: 1rem;
   margin: 0;
-  font-size: 1.2rem;
-  font-weight: 700;
-  color: #111827;
 }
 
-.page-title p {
-  margin: 2px 0 0 0;
-  font-size: 0.8rem;
-  color: #6b7280;
+.admin-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+  gap: 1.5rem;
+  max-width: 1200px;
 }
 
-.topbar-right {
+.table-card.full-width {
+  grid-column: 1 / -1;
+}
+
+.ui-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 2rem;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
+}
+
+.card-title-group {
+  margin-bottom: 1.5rem;
+  border-bottom: 1px solid #e2e8f0;
+  padding-bottom: 1rem;
+}
+
+.card-title-group h2 {
+  font-size: 1.125rem;
+  font-weight: 600;
+  margin: 0;
+  color: #0f172a;
+}
+
+.info-section h3, .form-section h3 {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #334155;
+  margin-bottom: 1rem;
+}
+
+.info-box {
   display: flex;
   align-items: center;
   gap: 1rem;
+  background: #f8fafc;
+  padding: 1rem 1.25rem;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
 }
 
-.admin-badge {
-  background: #4f46e5;
-  color: white;
-  font-size: 0.75rem;
-  font-weight: 700;
-  padding: 4px 12px;
-  border-radius: 20px;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-}
-
-.user-avatar {
-  width: 38px;
-  height: 38px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #667eea, #764ba2);
-  color: white;
+.avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 9999px;
+  background: #e0e7ff;
+  color: #4338ca;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: 700;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.info-text p {
+  margin: 0;
+}
+
+.info-text .name {
+  font-weight: 500;
+  color: #0f172a;
   font-size: 1rem;
 }
 
-.admin-body {
-  padding: 2rem;
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-}
-
-.stats-row {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 1rem;
-}
-
-.stat-card {
-  background: white;
-  border-radius: 12px;
-  padding: 1.25rem 1.5rem;
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
-  border: 1px solid #e5e7eb;
-}
-
-.stat-icon {
-  font-size: 1.5rem;
-  width: 48px;
-  height: 48px;
-  border-radius: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.stat-label {
-  margin: 0 0 2px 0;
-  font-size: 0.75rem;
-  color: #6b7280;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  font-weight: 600;
-}
-
-.stat-value {
-  margin: 0;
-  font-size: 1.1rem;
-  font-weight: 700;
-  color: #111827;
-}
-
-.form-card {
-  background: white;
-  border-radius: 16px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
-  border: 1px solid #e5e7eb;
-  overflow: hidden;
-}
-
-.admin-card {
-  overflow: visible;
-}
-
-.form-card-header {
-  padding: 1.5rem 2rem;
-  border-bottom: 1px solid #f3f4f6;
-  background: #fafafa;
-}
-
-.form-card-header h2 {
-  margin: 0 0 4px 0;
-  font-size: 1.1rem;
-  font-weight: 700;
-  color: #111827;
-}
-
-.form-card-header p {
-  margin: 0;
+.info-text .email {
+  color: #64748b;
   font-size: 0.875rem;
-  color: #6b7280;
+  margin-top: 0.125rem;
 }
 
-.notify-form {
-  padding: 2rem;
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
+.separator {
+  margin-top: 2rem;
+  padding-top: 2rem;
+  border-top: 1px dashed #e2e8f0;
 }
 
-.admin-card-content {
-  padding: 2rem;
-  display: flex;
-  flex-direction: column;
-  gap: 1.25rem;
+.form-group {
+  margin-bottom: 1.25rem;
 }
 
-.admin-picker {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: end;
-  gap: 1rem;
-}
-
-.empty-residents {
-  color: #6b7280;
-  font-size: 0.9rem;
-}
-
-.field-group {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.field-group label {
+.form-group label {
+  display: block;
   font-size: 0.875rem;
-  font-weight: 600;
-  color: #374151;
+  font-weight: 500;
+  color: #334155;
+  margin-bottom: 0.5rem;
 }
 
 .field-input {
-  padding: 0.75rem 1rem;
-  border: 1.5px solid #e5e7eb;
-  border-radius: 8px;
-  font-size: 0.95rem;
-  color: #111827;
-  background: white;
-  transition: border-color 0.2s, box-shadow 0.2s;
-  font-family: inherit;
   width: 100%;
+  padding: 0.625rem 0.875rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #ffffff;
+  font-family: inherit;
+  font-size: 0.95rem;
+  color: #0f172a;
   box-sizing: border-box;
+  transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
 }
 
 .field-input:focus {
   outline: none;
   border-color: #6366f1;
-  box-shadow: 0 0 0 3px rgba(99,102,241,0.1);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
 }
 
 textarea.field-input {
   resize: vertical;
-  min-height: 80px;
+  min-height: 100px;
 }
 
-.type-selector {
+.select-wrapper {
+  position: relative;
+}
+
+.select-wrapper::after {
+  content: "▼";
+  font-size: 0.6rem;
+  color: #64748b;
+  position: absolute;
+  right: 1rem;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.select-wrapper select {
+  appearance: none;
+  padding-right: 2rem;
+}
+
+.type-buttons {
   display: flex;
   gap: 0.75rem;
-  flex-wrap: wrap;
 }
 
 .type-btn {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.6rem 1.2rem;
-  border: 2px solid #e5e7eb;
-  border-radius: 8px;
-  background: white;
+  flex: 1;
+  padding: 0.625rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #ffffff;
   cursor: pointer;
-  font-size: 0.9rem;
-  font-weight: 500;
-  color: #4b5563;
-  transition: all 0.2s;
   font-family: inherit;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #475569;
+  transition: all 0.15s ease-in-out;
 }
 
 .type-btn:hover {
-  border-color: #9ca3af;
-  background: #f9fafb;
+  background: #f8fafc;
+  border-color: #94a3b8;
 }
 
-.type-btn.selected {
-  font-weight: 600;
-  color: #111827;
-}
-
-.type-icon {
-  font-size: 1.1rem;
+.type-btn.active {
+  background: #eef2ff;
+  color: #4338ca;
+  border-color: #a5b4fc;
 }
 
 .extra-fields {
-  background: #f9fafb;
-  border-radius: 10px;
+  background: #f8fafc;
+  border-radius: 8px;
   padding: 1.25rem;
-  border: 1px solid #e5e7eb;
+  border: 1px solid #e2e8f0;
+  margin-bottom: 1.25rem;
 }
 
-.extra-fields-label {
-  margin: 0 0 1rem 0;
-  font-size: 0.8rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  font-weight: 600;
-  color: #6b7280;
-}
-
-.extra-fields-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 1rem;
-}
-
-.form-footer {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.alert {
-  padding: 0.75rem 1rem;
-  border-radius: 8px;
-  font-size: 0.875rem;
+.btn-action {
+  padding: 0.625rem 1.25rem;
+  border: none;
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 0.95rem;
   font-weight: 500;
-}
-
-.alert-error {
-  background: #fef2f2;
-  color: #dc2626;
-  border: 1px solid #fecaca;
-}
-
-.alert-success {
-  background: #f0fdf4;
-  color: #16a34a;
-  border: 1px solid #bbf7d0;
-}
-
-.sent-summary {
-  border: 1px solid #dbeafe;
-  border-radius: 8px;
-  background: #eff6ff;
-  padding: 1rem;
-  color: #1e3a8a;
-}
-
-.sent-summary h3 {
-  margin: 0 0 0.75rem;
-  font-size: 0.95rem;
-}
-
-.sent-summary-grid,
-.sent-details {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.75rem;
-}
-
-.sent-summary span,
-.sent-details span {
-  display: block;
-  color: #64748b;
-  font-size: 0.75rem;
-  font-weight: 700;
-  text-transform: uppercase;
-}
-
-.sent-summary strong,
-.sent-details strong {
-  display: block;
-  color: #0f172a;
-  overflow-wrap: anywhere;
-}
-
-.sent-summary p {
-  margin: 0.75rem 0 0;
-  color: #1e293b;
-  overflow-wrap: anywhere;
-}
-
-.sent-details {
-  margin-top: 0.75rem;
-  border-top: 1px solid #bfdbfe;
-  padding-top: 0.75rem;
-}
-
-.send-btn {
-  align-self: flex-end;
-  padding: 0.875rem 2.5rem;
-  color: white;
-  border: none;
-  border-radius: 10px;
-  font-size: 1rem;
-  font-weight: 700;
   cursor: pointer;
-  transition: filter 0.2s, transform 0.1s;
-  font-family: inherit;
+  transition: background-color 0.15s ease-in-out;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
 }
 
-.send-btn:hover:not(:disabled) {
-  filter: brightness(1.1);
-  transform: translateY(-1px);
+.primary-btn {
+  background-color: #4f46e5;
+  color: #ffffff;
 }
 
-.send-btn:active {
-  transform: translateY(0);
+.primary-btn:hover:not(:disabled) {
+  background-color: #4338ca;
 }
 
-.send-btn:disabled {
-  opacity: 0.7;
+.primary-btn:active:not(:disabled) {
+  background-color: #3730a3;
+}
+
+.primary-btn:disabled {
+  opacity: 0.6;
   cursor: not-allowed;
 }
 
-.assign-btn {
-  padding: 0.75rem 1.5rem;
-  background: #111827;
-  color: white;
-  border: none;
-  border-radius: 8px;
-  font-size: 0.95rem;
-  font-weight: 700;
-  cursor: pointer;
-  font-family: inherit;
-  min-height: 47px;
+.full-width {
+  width: 100%;
 }
 
-.assign-btn:hover:not(:disabled) {
-  background: #1f2937;
+.mt-3 {
+  margin-top: 1rem;
+}
+.mt-4 {
+  margin-top: 1.5rem;
 }
 
-.assign-btn:disabled {
-  opacity: 0.7;
-  cursor: not-allowed;
+.fade-enter-active, .fade-leave-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.fade-enter-from, .fade-leave-to {
+  opacity: 0;
+  transform: translateY(-5px);
+}
+
+@media (max-width: 1024px) {
+  .admin-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .admin-container {
+    padding: 1rem;
+  }
+  .ui-card {
+    padding: 1.5rem;
+  }
+  .type-buttons {
+    flex-direction: column;
+  }
 }
 </style>
